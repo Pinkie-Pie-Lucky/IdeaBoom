@@ -17,3 +17,5 @@ cf.err.log
 # Python
 __pycache__/
 *.pyc
+.venv-ideaboom/
+.venv/

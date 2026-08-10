@@ -1,76 +1,43 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-魔搭创空间（ModelScope Studio）Gradio 模式入口
+魔搭创空间（ModelScope Studio）Gradio SDK 入口
 ------------------------------------------------
-魔搭 Gradio SDK 会以 `python3 app.py` 启动应用并轮询 7860 端口。
+魔搭 Gradio 模式会执行 `python3 app.py`，并探测 7860 端口上的 Gradio 应用。
 
-本文件策略：
-1. 优先启动 Node 版「灵感炸了」服务（server.js，完整功能：选题 + 仿写二创 + DeepSeek）。
-2. 若环境缺少 Node，则降级为 Python 内置 http.server 实现：
-   - 静态托管 public/
-   - POST /api/generate-topics：读环境变量调 DeepSeek，未配置则返回示例数据。
+本文件 = FastAPI + Gradio 组合：
+- Gradio 挂载在 `/`：魔搭健康检查通过（gradio 页面 + /gradio_api 端点）
+- 完整前端页面（CSS/JS 内联）通过 gr.HTML 嵌入 Gradio
+- POST /api/generate-topics、/api/rewrite 由 FastAPI 提供（Python 实现）
+- AI 引擎：环境变量 VC_LLM_API_KEY 存在则调 DeepSeek（OpenAI 兼容），否则返回 mock 数据
 """
 import json
 import os
-import shutil
-import socket
-import subprocess
-import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.request import Request, urlopen
+import re
+from pathlib import Path
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PUBLIC_DIR = os.path.join(BASE_DIR, "public")
+BASE_DIR = Path(__file__).resolve().parent
+PUBLIC_DIR = BASE_DIR / "public"
 PORT = int(os.environ.get("PORT") or os.environ.get("GRADIO_SERVER_PORT") or 7860)
 
 
-def node_available():
-    return shutil.which("node") is not None
-
-
-def _port_open(port, timeout=1.0):
+def load_env():
+    """轻量 .env 读取（与 server.js 一致）：仅当环境变量未设置时填充。"""
     try:
-        with socket.create_connection(("127.0.0.1", port), timeout=timeout):
-            return True
+        txt = (BASE_DIR / ".env").read_text(encoding="utf-8")
+        for line in txt.splitlines():
+            m = re.match(r"^\s*([\w.-]+)\s*=\s*(.*)\s*$", line)
+            if m and os.environ.get(m.group(1)) is None:
+                os.environ[m.group(1)] = m.group(2).strip().strip("'\"")
     except OSError:
-        return False
+        pass
 
 
-def start_node():
-    """启动 server.js，等待端口就绪；失败返回 None。"""
-    env = dict(os.environ)
-    env.setdefault("PORT", str(PORT))
-    proc = subprocess.Popen(
-        ["node", "server.js"],
-        cwd=BASE_DIR,
-        env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    deadline = time.time() + 30
-    while time.time() < deadline:
-        if proc.poll() is not None:
-            break
-        if _port_open(PORT):
-            return proc
-        time.sleep(0.5)
-    proc.terminate()
-    return None
+load_env()
 
 # --------------------------------------------------------------------------
-# Python 降级：静态托管 + 极简 AI API
+# AI 逻辑（Python 实现，与 src/ai.js 功能对齐）
 # --------------------------------------------------------------------------
-MIME = {
-    ".html": "text/html; charset=utf-8",
-    ".css": "text/css; charset=utf-8",
-    ".js": "text/javascript; charset=utf-8",
-    ".json": "application/json; charset=utf-8",
-    ".svg": "image/svg+xml",
-    ".png": "image/png",
-    ".ico": "image/x-icon",
-}
-
 HARD_BLOCK = ["冰毒", "海洛因", "摇头丸", "赌博", "博彩", "私彩", "代孕", "枪支"]
 
 
@@ -111,7 +78,7 @@ def _call_llm(system, user):
     base = os.environ.get("VC_LLM_BASE", "https://api.deepseek.com/v1").rstrip("/")
     model = os.environ.get("VC_LLM_MODEL", "deepseek-v4-flash")
     key = os.environ.get("VC_LLM_API_KEY", "")
-    req = Request(
+    req = __import__("urllib.request", fromlist=["Request"]).Request(
         f"{base}/chat/completions",
         data=json.dumps({
             "model": model,
@@ -127,12 +94,12 @@ def _call_llm(system, user):
         },
         method="POST",
     )
-    with urlopen(req, timeout=60) as resp:
+    with __import__("urllib.request", fromlist=["urlopen"]).urlopen(req, timeout=60) as resp:
         data = json.loads(resp.read().decode("utf-8"))
     return data["choices"][0]["message"]["content"]
 
+
 def _parse_json(text):
-    import re
     t = text.strip()
     for pre in ("```json", "```"):
         if t.startswith(pre):
@@ -167,12 +134,9 @@ def _sanitize_topic(t):
     level = safety.get("level") if safety.get("level") in ("safe", "caution", "blocked") else "safe"
     hit = next((w for w in HARD_BLOCK if w in text), None)
     if hit:
-        level = "blocked"
-        category = "违法违规(硬黑名单)"
-        reason = f"命中明确违规词：{hit}"
+        level, category, reason = "blocked", "违法违规(硬黑名单)", f"命中明确违规词：{hit}"
     else:
-        category = safety.get("category", "")
-        reason = safety.get("reason", "")
+        category, reason = safety.get("category", ""), safety.get("reason", "")
     return {
         "topic": s(t.get("topic")),
         "title": s(t.get("title")),
@@ -217,69 +181,74 @@ def _generate_topics(payload):
         return {"model": "mock(fallback)", "note": f"真实模型调用失败，已降级示例：{e}", "topics": _mock_topics(payload)}
 
 
-class Handler(BaseHTTPRequestHandler):
-    def log_message(self, fmt, *args):
-        return
-
-    def _send(self, code, obj, ctype="application/json; charset=utf-8"):
-        body = obj if isinstance(obj, bytes) else json.dumps(obj, ensure_ascii=False).encode("utf-8")
-        self.send_response(code)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def do_GET(self):
-        from urllib.parse import urlparse
-        path = urlparse(self.path).path
-        if path in ("/", ""):
-            path = "/index.html"
-        fp = os.path.join(PUBLIC_DIR, path.lstrip("/"))
-        if not os.path.realpath(fp).startswith(os.path.realpath(PUBLIC_DIR)) or not os.path.isfile(fp):
-            self._send(404, {"ok": False, "error": "Not Found"})
-            return
-        ext = os.path.splitext(fp)[1].lower()
-        with open(fp, "rb") as f:
-            self._send(200, f.read(), MIME.get(ext, "application/octet-stream"))
-
-    def do_POST(self):
-        from urllib.parse import urlparse
-        path = urlparse(self.path).path
-        try:
-            length = int(self.headers.get("Content-Length") or 0)
-            payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
-        except Exception:
-            self._send(400, {"ok": False, "error": "请求体不是合法 JSON"})
-            return
-        if path == "/api/generate-topics":
-            if not payload.get("hotspot_summary", "").strip():
-                self._send(400, {"ok": False, "error": "缺少 hotspot_summary"})
-                return
-            self._send(200, {"ok": True, **_generate_topics(payload)})
-            return
-        self._send(404, {"ok": False, "error": "Not Found"})
+def build_frontend_html():
+    """读取前端三件套并把 CSS/JS 内联进 HTML（供 gr.HTML 嵌入 Gradio）。"""
+    html = (PUBLIC_DIR / "index.html").read_text(encoding="utf-8")
+    css = (PUBLIC_DIR / "styles.css").read_text(encoding="utf-8")
+    js = (PUBLIC_DIR / "app.js").read_text(encoding="utf-8")
+    html = html.replace('<link rel="stylesheet" href="styles.css" />', f"<style>\n{css}\n</style>")
+    html = html.replace('<script src="app.js"></script>', f"<script>\n{js}\n</script>")
+    return html
 
 
-def serve_fallback():
-    print(f"[app.py] Node 不可用，降级为 Python 服务，端口 {PORT}（功能受限）", flush=True)
-    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+# --------------------------------------------------------------------------
+# FastAPI + Gradio（魔搭 Gradio SDK 兼容）
+# --------------------------------------------------------------------------
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+import gradio as gr
+
+app = FastAPI(title="灵感炸了 · IdeaBoom")
+
+
+@app.post("/api/generate-topics")
+async def api_generate_topics(req: Request):
+    try:
+        payload = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "请求体不是合法 JSON"}, status_code=400)
+    if not payload.get("hotspot_summary", "").strip():
+        return JSONResponse({"ok": False, "error": "缺少 hotspot_summary"}, status_code=400)
+    return {"ok": True, **_generate_topics(payload)}
+
+
+@app.post("/api/rewrite")
+async def api_rewrite(req: Request):
+    try:
+        payload = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "请求体不是合法 JSON"}, status_code=400)
+    if not payload.get("bestseller_content", "").strip():
+        return JSONResponse({"ok": False, "error": "缺少 bestseller_content"}, status_code=400)
+    return {
+        "ok": True,
+        "model": "mock(fallback)",
+        "note": "魔搭 Python 环境暂不支持完整二创，请使用本地/Docker 的 Node 版（/api/rewrite）",
+        "source": {"summary": "（二创功能需 Node 环境）", "modules": [], "mechanism": ""},
+        "rewrites": [],
+    }
+
+
+# Gradio 主应用：挂载在 /，内嵌完整前端页面，满足魔搭 Gradio 健康检查
+_GIO_CSS = """
+.gradio-container { max-width: none !important; padding: 0 !important; margin: 0 !important; }
+footer { display: none !important; }
+#_gio_frontend { border: 0 !important; }
+"""
+
+with gr.Blocks(title="灵感炸了 · IdeaBoom", css=_GIO_CSS) as _demo:
+    gr.HTML(build_frontend_html(), elem_id="_gio_frontend")
+
+app = gr.mount_gradio_app(app, _demo, path="/")
 
 
 def main():
-    if node_available():
-        proc = start_node()
-        if proc is not None:
-            print(f"[app.py] Node 服务已启动: http://127.0.0.1:{PORT} (PID {proc.pid})", flush=True)
-            try:
-                while proc.poll() is None:
-                    time.sleep(5)
-            finally:
-                proc.terminate()
-            return
-        print("[app.py] 启动 Node 失败，尝试 Python 降级", flush=True)
-    serve_fallback()
+    import uvicorn
+    print(f"[app.py] 灵感炸了已启动: http://0.0.0.0:{PORT}", flush=True)
+    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="warning")
 
 
 if __name__ == "__main__":
     main()
+
 
