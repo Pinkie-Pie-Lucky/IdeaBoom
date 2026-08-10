@@ -26,10 +26,13 @@ pinned: false
 
 ## 部署说明（魔搭创空间）
 
-魔搭以 Gradio SDK 运行本仓库，入口 `app.py`。`app.py` 会：
+魔搭以 **Gradio SDK** 运行本仓库，入口 `app.py`（`sdk: gradio`）。
 
-1. **优先**在环境中查找 `node`，存在则启动 `node server.js`（完整功能）；
-2. 若环境无 Node，则**降级**为 Python 内置 HTTP 服务（静态页面 + 选题接口，功能受限）。
+`app.py` 采用 **FastAPI + Gradio** 组合：
+- Gradio 挂载在 `/`：满足魔搭 Gradio SDK 的健康检查（`/gradio_api` 等端点可用）
+- 完整前端页面（CSS/JS 自动内联）嵌入 Gradio 页面
+- `POST /api/generate-topics` 由 FastAPI 提供（Python 实现：mock / DeepSeek）
+- ⚠️ 魔搭免费镜像**未预装 Node**，因此走纯 Python 实现；如需完整 Node 功能，请使用 `Dockerfile`（切 `sdk: docker`）或本地运行
 
 ### 环境变量（魔搭「设置 → 环境变量」中配置）
 
@@ -38,6 +41,8 @@ pinned: false
 | `VC_LLM_API_KEY` | AI 服务密钥（必填，否则走 mock 示例数据） | `sk-xxxx` |
 | `VC_LLM_BASE` | OpenAI 兼容 API 地址 | `https://api.deepseek.com/v1` |
 | `VC_LLM_MODEL` | 模型名 | `deepseek-v4-flash` |
+
+> 本项目依赖已内置在魔搭环境（gradio 6.17.3 + fastapi + uvicorn），无需 `requirements.txt`。
 
 ## 本地运行
 
