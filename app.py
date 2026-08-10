@@ -181,21 +181,19 @@ def _generate_topics(payload):
         return {"model": "mock(fallback)", "note": f"真实模型调用失败，已降级示例：{e}", "topics": _mock_topics(payload)}
 
 
-def build_frontend_html():
-    """读取前端三件套并把 CSS/JS 内联进 HTML（供 gr.HTML 嵌入 Gradio）。"""
-    html = (PUBLIC_DIR / "index.html").read_text(encoding="utf-8")
-    css = (PUBLIC_DIR / "styles.css").read_text(encoding="utf-8")
-    js = (PUBLIC_DIR / "app.js").read_text(encoding="utf-8")
-    html = html.replace('<link rel="stylesheet" href="styles.css" />', f"<style>\n{css}\n</style>")
-    html = html.replace('<script src="app.js"></script>', f"<script>\n{js}\n</script>")
-    return html
+def _public_file(filename):
+    """返回 public/ 下的静态文件（前端页面 / CSS / JS）。"""
+    fp = PUBLIC_DIR / filename
+    if not fp.is_file():
+        return JSONResponse({"ok": False, "error": "Not Found"}, status_code=404)
+    return FileResponse(fp)
 
 
 # --------------------------------------------------------------------------
 # FastAPI + Gradio（魔搭 Gradio SDK 兼容）
 # --------------------------------------------------------------------------
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 import gradio as gr
 
 app = FastAPI(title="灵感炸了 · IdeaBoom")
@@ -229,17 +227,31 @@ async def api_rewrite(req: Request):
     }
 
 
-# Gradio 主应用：挂载在 /，内嵌完整前端页面，满足魔搭 Gradio 健康检查
+# 前端页面（独立于 Gradio，iframe 内嵌，保证 JS 正常执行）
+@app.get("/__app/")
+async def frontend_index():
+    return FileResponse(PUBLIC_DIR / "index.html")
+
+
+@app.get("/__app/{filename}")
+async def frontend_static(filename: str):
+    return _public_file(filename)
+
+
+# Gradio 主应用：挂载在 /，用 iframe 嵌入前端页面，满足魔搭 Gradio 健康检查
 _GIO_CSS = """
 .gradio-container { max-width: none !important; padding: 0 !important; margin: 0 !important; }
 footer { display: none !important; }
-#_gio_frontend { border: 0 !important; }
+html, body { margin: 0 !important; padding: 0 !important; }
 """
 
-with gr.Blocks(title="灵感炸了 · IdeaBoom", css=_GIO_CSS) as _demo:
-    gr.HTML(build_frontend_html(), elem_id="_gio_frontend")
+with gr.Blocks(title="灵感炸了 · IdeaBoom") as _demo:
+    gr.HTML(
+        '<iframe src="/__app/" style="width:100%;height:100vh;border:0;display:block"></iframe>',
+        elem_id="_gio_frontend",
+    )
 
-app = gr.mount_gradio_app(app, _demo, path="/")
+app = gr.mount_gradio_app(app, _demo, path="/", css=_GIO_CSS)
 
 
 def main():
