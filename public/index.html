@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>灵感炸了 · 创作工作台</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo">💡</div>
+      <div><div class="brand-name">灵感炸了</div><div class="brand-sub">IdeaBoom</div></div>
+    </div>
+        <div class="nav-group">
+      <div class="nav-label">核心功能</div>
+      <div class="nav-item active" data-view="ai"><span class="nav-ico">✨</span><span>AI 智能选题</span></div>
+      <div class="nav-item" data-view="rewrite"><span class="nav-ico">🪄</span><span>爆款仿写二创</span></div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb">核心功能 / <b id="crumb">AI 智能选题</b></div>
+    </div>
+    <div class="content">
+      <!-- AI 智能选题 -->
+      <section class="view active" id="view-ai">
+        <div class="page-head">
+          <div><h1>AI 智能选题</h1>
+          <div class="desc">粘贴热点报告 + 勾选参数，AI 按 5 步流水线产出带传播锚点 / 爆款基因 / 三维打分的结构化选题</div></div>
+        </div>
+
+        <div class="grid-2col">
+          <!-- 参数面板 -->
+          <div class="card">
+            <div class="card-h"><h3>生成参数</h3></div>
+            <div class="field">
+              <label>热点 / 趋势分析报告（必填，≤2000字）</label>
+              <textarea class="textarea" id="hotspot" placeholder="例：近期「早C晚A翻车」讨论暴涨，高频痛点=烂脸修复、浓度不会选；竞品内容多为单篇科普，缺少按肤质+预算的定制方案，存在空白。"></textarea>
+              <div class="muted-note" id="hotspot-count" style="margin-top:6px">0 / 2000</div>
+            </div>
+            <div class="field">
+              <label>内容类型（可多选）</label>
+              <div class="chips" id="types">
+                <span class="chip" data-v="干货教程">干货教程</span>
+                <span class="chip" data-v="测评对比">测评对比</span>
+                <span class="chip" data-v="种草推荐">种草推荐</span>
+                <span class="chip" data-v="避坑盘点">避坑盘点</span>
+                <span class="chip" data-v="vlog记录">vlog记录</span>
+                <span class="chip" data-v="知识科普">知识科普</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>目标受众（可多选）</label>
+              <div class="chips" id="audiences">
+                <span class="chip" data-v="学生党">学生党</span>
+                <span class="chip" data-v="油痘肌">油痘肌</span>
+                <span class="chip" data-v="通勤族">通勤族</span>
+                <span class="chip" data-v="新手妈妈">新手妈妈</span>
+                <span class="chip" data-v="租房党">租房党</span>
+                <span class="chip" data-v="健身小白">健身小白</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>生成数量</label>
+              <div class="seg" id="count-seg" style="width:100%">
+                <button data-v="3">3</button><button class="active" data-v="5">5</button><button data-v="8">8</button>
+              </div>
+            </div>
+            <button class="btn btn-ai" id="gen-btn">✨ 生成选题</button>
+            <div class="muted-note" style="margin-top:12px">引擎：痛点挖掘 → 角度嫁接 → 传播锚点 → 基因植入 → 质量门（&lt;10 分标"边缘"）。已接入 DeepSeek 真实模型。</div>
+          </div>
+
+          <!-- 结果区 -->
+          <div>
+            <div id="note-bar"></div>
+            <div id="result-state" class="state">
+              <div class="ico">✨</div>
+              <div>填写左侧热点报告并点「生成选题」，结果将显示在这里</div>
+            </div>
+            <div id="results" class="results hidden"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 爆款仿写二创 -->
+      <section class="view" id="view-rewrite">
+        <div class="page-head">
+          <div><h1>爆款仿写二创</h1>
+          <div class="desc">粘贴爆款笔记内容，AI 先拆解结构骨架，再基于骨架迁移人群 / 场景生成差异化同风格二创，避免照搬抄袭</div></div>
+        </div>
+
+        <div class="grid-2col">
+          <!-- 参数面板 -->
+          <div class="card">
+            <div class="card-h"><h3>二创参数</h3></div>
+            <div class="field">
+              <label>爆款笔记内容 / 链接（必填，≤3000字，建议粘贴正文）</label>
+              <textarea class="textarea" id="rw-content" placeholder="例：标题《早C晚A我烂脸了！油痘肌血泪避坑》正文：先说我的翻车经历，跟风猛上0.1%A醇结果爆皮。后来改成隔天+保湿打底才稳住。附梳妆台九宫格和浓度阶梯图，评论区都在求链接。"></textarea>
+              <div class="muted-note" id="rw-count" style="margin-top:6px">0 / 3000</div>
+            </div>
+            <div class="field">
+              <label>二创目标人群（可多选，留空则由 AI 推断）</label>
+              <div class="chips" id="rw-audiences">
+                <span class="chip" data-v="学生党">学生党</span>
+                <span class="chip" data-v="油痘肌">油痘肌</span>
+                <span class="chip" data-v="通勤族">通勤族</span>
+                <span class="chip" data-v="新手妈妈">新手妈妈</span>
+                <span class="chip" data-v="租房党">租房党</span>
+                <span class="chip" data-v="健身小白">健身小白</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>二创数量</label>
+              <div class="seg" id="rw-count-seg" style="width:100%">
+                <button data-v="2">2</button><button class="active" data-v="3">3</button><button data-v="5">5</button>
+              </div>
+            </div>
+            <button class="btn btn-ai" id="rw-btn">🪄 拆解并二创</button>
+            <div class="muted-note" style="margin-top:12px">两步法：① 结构拆解（模块 / 机制）→ ② 同风格二创（换人群场景）。已接入 DeepSeek 真实模型。</div>
+          </div>
+
+          <!-- 结果区 -->
+          <div>
+            <div id="rw-note"></div>
+            <div id="rw-state" class="state">
+              <div class="ico">🪄</div>
+              <div>粘贴爆款内容并点「拆解并二创」，AI 会先拆结构再出二创方案</div>
+            </div>
+            <div id="rw-results" class="hidden"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

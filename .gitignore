@@ -1,0 +1,10 @@
+# 密钥与本地配置
+.env
+.env.local
+
+# 依赖
+node_modules/
+
+# 系统/编辑器
+.DS_Store
+*.log

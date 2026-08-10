@@ -1,0 +1,10 @@
+{
+  "name": "viral-compass",
+  "version": "0.1.0",
+  "description": "爆款罗盘 - AI 智能选题（本期单页）",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "private": true
+}
