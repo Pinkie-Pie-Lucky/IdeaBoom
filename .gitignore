@@ -13,3 +13,7 @@ node_modules/
 .cloudflared.exe
 cf.out.log
 cf.err.log
+
+# Python
+__pycache__/
+*.pyc
