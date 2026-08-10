@@ -8,3 +8,8 @@ node_modules/
 # 系统/编辑器
 .DS_Store
 *.log
+
+# 本地预览工具（cloudflared）
+.cloudflared.exe
+cf.out.log
+cf.err.log
