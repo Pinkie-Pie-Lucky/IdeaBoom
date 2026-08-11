@@ -181,6 +181,119 @@ def _generate_topics(payload):
         return {"model": "mock(fallback)", "note": f"真实模型调用失败，已降级示例：{e}", "topics": _mock_topics(payload)}
 
 
+# --------------------------------------------------------------------------
+# 爆款仿写二创（Python 实现，与 Node 版 /api/rewrite 功能对齐）
+# --------------------------------------------------------------------------
+def _sanitize_rewrite(r):
+    def s(v, d="—"):
+        return v.strip() if isinstance(v, str) and v.strip() else d
+    genes = r.get("genes", [])[:3] if isinstance(r.get("genes"), list) else []
+    text = " ".join([s(r.get("topic")), s(r.get("draft")), s(r.get("angle_shift"))])
+    safety = r.get("safety") if isinstance(r.get("safety"), dict) else {}
+    level = safety.get("level") if safety.get("level") in ("safe", "caution", "blocked") else "safe"
+    hit = next((w for w in HARD_BLOCK if w in text), None)
+    if hit:
+        level, category, reason = "blocked", "违法违规(硬黑名单)", f"命中明确违规词：{hit}"
+    else:
+        category, reason = safety.get("category", ""), safety.get("reason", "")
+    return {
+        "topic": s(r.get("topic")),
+        "target_audience": s(r.get("target_audience")),
+        "angle_shift": s(r.get("angle_shift")),
+        "draft": s(r.get("draft")),
+        "genes": genes,
+        "safety": {"level": level, "category": category, "reason": reason},
+    }
+
+
+def _mock_rewrite(payload):
+    bestseller = payload.get("bestseller_content", "")
+    auds = payload.get("target_audiences") or ["学生党"]
+    count = int(payload.get("count") or 3)
+    aud = auds[0]
+    m = re.search(r"[\u4e00-\u9fa5]{2,4}", bestseller)
+    kw = m.group(0) if m else "爆款"
+    source = {
+        "summary": f"一条围绕「{kw}」的高互动爆款笔记（示例拆解）",
+        "modules": [
+            {"name": "开篇钩子", "role": "用强冲突/痛点抓住前 3 秒", "transferable": "任何品类都能用'你还在 X？'式反问"},
+            {"name": "身份代入", "role": "圈定精准人群制造归属感", "transferable": "替换人群标签即可复用"},
+            {"name": "干货清单", "role": "用编号罗列可操作要点", "transferable": "结构化清单收藏率高"},
+        ],
+        "mechanism": "强身份标签 + 可复制清单 + 反差画面，叠加'抄作业'式低门槛行动触发，天然高收藏转发",
+    }
+    bank = [
+        {
+            "topic": f"{aud}版「{kw}」照着做就对了",
+            "target_audience": aud,
+            "angle_shift": f"把原文人群换成{aud}，场景本地化",
+            "draft": f"姐妹们！原文那套我给{aud}改了一版，亲测更顺手👇\n1. 先 XX 再 XX，别反了\n2. 预算控制在 XX 内，别被割\n3. 卡壳了就回到最基础的哪步\n评论区扣 1 发你同款清单～",
+            "genes": ["身份标签", "行动触发"],
+            "safety": {"level": "safe", "category": "", "reason": ""},
+        },
+        {
+            "topic": f"别再盲目{kw}！{aud}的 3 个坑",
+            "target_audience": aud,
+            "angle_shift": "从'怎么做'切到'别踩坑'（避坑视角）",
+            "draft": f"踩过才知道的坑！{aud}做{kw}最容易翻车的 3 个点：\n❌ 一上来就堆量\n❌ 跟风买贵的\n❌ 忽略自己的场景\n对应解法在图 2，存好别删～",
+            "genes": ["情绪钩子", "信息差"],
+            "safety": {"level": "safe", "category": "", "reason": ""},
+        },
+        {
+            "topic": f"{kw}还能这样玩？{aud}反常识实测",
+            "target_audience": aud,
+            "angle_shift": "用反常识冲突制造好奇",
+            "draft": f"都说{kw}要多做，我偏反着试了两周——结果真香？\n数据摆在这：少做这一步，效果反而 +30%\n原理其实很简单，看完你就懂为啥以前白忙活",
+            "genes": ["反常识冲突", "信息差"],
+            "safety": {"level": "safe", "category": "", "reason": ""},
+        },
+    ]
+    return {
+        "source": source,
+        "rewrites": [dict(bank[i % len(bank)]) for i in range(count)],
+    }
+
+
+def _rewrite_bestseller(payload):
+    if not os.environ.get("VC_LLM_API_KEY"):
+        return {"model": "mock", **_mock_rewrite(payload)}
+    bestseller = payload.get("bestseller_content", "")
+    auds = "、".join(payload.get("target_audiences") or []) or "不限（由你推断合适人群）"
+    count = int(payload.get("count") or 3)
+    system = (
+        "你是一位拥有5年小红书运营经验的爆款拆解与二创专家。"
+        f"Step1 结构拆解：把原文拆成 4-6 个模块，每个含 name/role/transferable，并提炼 mechanism。"
+        f"Step2 同风格二创：保留原文结构骨架与语气，替换人群/场景/素材，生成 {count} 个差异化新选题。"
+        "每个二创含 topic/target_audience/angle_shift/draft(≤200字，带换行与emoji)/genes(2类)/safety{level,category,reason}。"
+        "只输出纯 JSON 对象：{source:{summary,modules:[{name,role,transferable}],mechanism},rewrites:[...]}。"
+        "红线：二创必须差异化不得照搬原文；禁用最/第一/绝对/国家级/唯一等绝对化表述；"
+        "健康类弱化为个人经验分享，不承诺功效；不站队不蹭敏感话题。"
+    )
+    user = (
+        f"# 爆款笔记内容\n\"\"\"\n{bestseller}\n\"\"\"\n"
+        f"二创目标人群：{auds}\n二创数量：{count}\n请输出纯 JSON 对象。"
+    )
+    try:
+        raw = _call_llm(system, user)
+        data = _parse_json(raw)
+        if not isinstance(data, dict) or not isinstance(data.get("rewrites"), list):
+            raise ValueError("LLM 返回缺少 rewrites 数组")
+
+        def s(v, d="—"):
+            return v.strip() if isinstance(v, str) and v.strip() else d
+        src = data.get("source") if isinstance(data.get("source"), dict) else {}
+        raw_modules = src.get("modules") if isinstance(src.get("modules"), list) else []
+        modules = []
+        for m in raw_modules[:6]:
+            if isinstance(m, dict):
+                modules.append({"name": s(m.get("name")), "role": s(m.get("role")), "transferable": s(m.get("transferable"))})
+        source = {"summary": s(src.get("summary")), "modules": modules, "mechanism": s(src.get("mechanism"))}
+        rewrites = [_sanitize_rewrite(r) for r in data["rewrites"]]
+        return {"model": os.environ.get("VC_LLM_MODEL", "deepseek-v4-flash"), "source": source, "rewrites": rewrites}
+    except Exception as e:
+        return {"model": "mock(fallback)", "note": f"真实模型调用失败，已降级示例：{e}", **_mock_rewrite(payload)}
+
+
 def _public_file(filename):
     """返回 public/ 下的静态文件（前端页面 / CSS / JS）。"""
     fp = PUBLIC_DIR / filename
@@ -218,13 +331,7 @@ async def api_rewrite(req: Request):
         return JSONResponse({"ok": False, "error": "请求体不是合法 JSON"}, status_code=400)
     if not payload.get("bestseller_content", "").strip():
         return JSONResponse({"ok": False, "error": "缺少 bestseller_content"}, status_code=400)
-    return {
-        "ok": True,
-        "model": "mock(fallback)",
-        "note": "魔搭 Python 环境暂不支持完整二创，请使用本地/Docker 的 Node 版（/api/rewrite）",
-        "source": {"summary": "（二创功能需 Node 环境）", "modules": [], "mechanism": ""},
-        "rewrites": [],
-    }
+    return {"ok": True, **_rewrite_bestseller(payload)}
 
 
 # 前端页面（独立于 Gradio，iframe 内嵌，保证 JS 正常执行）
