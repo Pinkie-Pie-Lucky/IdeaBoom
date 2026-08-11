@@ -8,8 +8,9 @@ const HARD_BLOCK = ["冰毒", "海洛因", "摇头丸", "赌博", "博彩", "私
 
 // ---------- 通用 LLM 调用 + JSON 解析 ----------
 async function callLLM(system, user) {
-  const base = process.env.VC_LLM_BASE || "https://api.openai.com/v1";
-  const model = process.env.VC_LLM_MODEL || "gpt-4o-mini";
+  // 默认对接 DeepSeek（与 Python 版 app.py 一致）；如换其他 OpenAI 兼容服务，用 VC_LLM_BASE/VC_LLM_MODEL 覆盖
+  const base = process.env.VC_LLM_BASE || "https://api.deepseek.com/v1";
+  const model = process.env.VC_LLM_MODEL || "deepseek-v4-flash";
   const key = process.env.VC_LLM_API_KEY;
   const resp = await fetch(`${base}/chat/completions`, {
     method: "POST",
