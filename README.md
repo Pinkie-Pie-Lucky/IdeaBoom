@@ -1,52 +1,183 @@
+
+
+# 💡 灵感炸了 · IdeaBoom
+
+> 一个把"出爆款"从玄学变成流水线的**小红书选题决策引擎**。
+> 不替你写稿，而是帮你"想清楚做什么、怎么借势做"。
+
+灵感炸了只做两件事，正好对应创作者的两个真实卡点：
+
+- **看不准** —— 热点来了，到底该不该蹭、从哪切、受众买不买账？
+- **仿不像** —— 看到爆款想借鉴又不敢照搬，硬写总"形像神不像"，还容易踩红线被限流。
+
+为此，产品只保留两个功能模块：
+
+| 模块 | 解决的问题 | 一句话说明 |
+| --- | --- | --- |
+| **AI 智能选题** | 看不准 | 输入一段热点/趋势描述，按五步流水线产出带评分、带传播锚点的可发布选题 |
+| **爆款仿写二创** | 仿不像 | 粘贴一条爆款正文，自动拆结构、做"抄神不抄形"的差异化二创 |
+
 ---
-title: 灵感炸了 · IdeaBoom
-emoji: 💡
-colorFrom: blue
-colorTo: purple
-sdk: gradio
-sdk_version: 6.17.3
-app_file: app.py
-pinned: false
+
+## ✨ 核心方法论
+
+选题沉淀为 **5 步流水线**：痛点挖掘 → 角度嫁接 → 传播锚点 → 基因植入 → 质量门。
+仿写采用 **两步法**：结构拆解 → 同风格二创。
+
+两个"反向的闸"是产品可信度的关键：
+
+- **质量门**：模型生成后自我打分（点击潜力 / 传播性 / 可执行性，各 1–5 分），弱选题（`总分 < 10`）自动标注"边缘"。
+- **红线自检**：用"模型语义自检为主 + 极小硬黑名单兜底"判断内容安全风险（色情、暴力、政治敏感、违法违规），明确涉敏的选题会被标记甚至拦截，**正常内容绝不会因为写了"最后一步"之类被误伤**。
+
 ---
 
-# 💡 灵感炸了 · 创作工作台
+## 🧱 技术栈
 
-让「从 0 想选题」和「跟爆款二创」这两件最痛的事，变成有方法、有评分、有合规底线的确定性动作。
+- **零依赖**：纯 Node.js `http` 服务，无需 `npm install`。
+- **Node 22+**（用到 ES Module / `fetch`）。
+- **LLM 接入**：OpenAI 兼容接口，默认对接 DeepSeek，可切换任意兼容服务。
+- 未配置 API Key 时自动进入 **Mock 模式**（返回示例数据，便于本地预览）。
 
-## 功能
+---
 
-- **✨ AI 智能选题**：粘贴热点报告 + 勾选参数，AI 按 5 步流水线产出带传播锚点 / 爆款基因 / 三维打分的结构化选题（`<10 分` 自动标注"边缘"）
-- **🪄 爆款仿写二创**：粘贴爆款笔记，AI 先拆结构骨架，再迁移人群 / 场景生成差异化同风格二创
-
-## 技术栈
-
-- 核心服务：**Node.js（零依赖，纯 `node:http`）**，入口 `server.js`
-- 前端：原生 HTML / CSS / JS（`public/`）
-- AI：OpenAI 兼容协议，默认对接 DeepSeek（可在环境变量中切换）
-
-## 部署说明（魔搭创空间）
-
-魔搭以 **Gradio SDK** 运行本仓库，入口 `app.py`（`sdk: gradio`）。
-
-`app.py` 采用 **FastAPI + Gradio** 组合：
-- Gradio 挂载在 `/`：满足魔搭 Gradio SDK 的健康检查（`/gradio_api` 等端点可用）
-- 完整前端页面（CSS/JS 自动内联）嵌入 Gradio 页面
-- `POST /api/generate-topics` 由 FastAPI 提供（Python 实现：mock / DeepSeek）
-- ⚠️ 魔搭免费镜像**未预装 Node**，因此走纯 Python 实现；如需完整 Node 功能，请使用 `Dockerfile`（切 `sdk: docker`）或本地运行
-
-### 环境变量（魔搭「设置 → 环境变量」中配置）
-
-| 变量 | 说明 | 示例 |
-|---|---|---|
-| `VC_LLM_API_KEY` | AI 服务密钥（必填，否则走 mock 示例数据） | `sk-xxxx` |
-| `VC_LLM_BASE` | OpenAI 兼容 API 地址 | `https://api.deepseek.com/v1` |
-| `VC_LLM_MODEL` | 模型名 | `deepseek-v4-flash` |
-
-> 本项目依赖已内置在魔搭环境（gradio 6.17.3 + fastapi + uvicorn），无需 `requirements.txt`。
-
-## 本地运行
+## 🚀 快速开始
 
 ```bash
-node server.js
-# 打开 http://localhost:4173
+# 1. 进入项目
+cd viral-compass
+
+# 2.（可选）配置大模型
+# 复制示例并填入你自己的 Key
+cp .env.example .env
+# 编辑 .env：
+#   VC_LLM_API_KEY=sk-xxxx
+#   VC_LLM_BASE=https://api.deepseek.com/v1
+#   VC_LLM_MODEL=deepseek-chat
+
+# 3. 启动
+npm start
+# 或： node server.js
+
+# 4. 打开浏览器
+# http://localhost:4173
 ```
+
+> 不配置 `.env` 也能直接 `npm start`，此时走 Mock 模式，前端功能完整可体验。
+
+### 环境变量
+
+| 变量 | 说明 | 默认值 |
+| --- | --- | --- |
+| `VC_LLM_API_KEY` | OpenAI 兼容服务的 API Key（留空则 Mock 模式） | 无 |
+| `VC_LLM_BASE` | API 基地址（含 `/v1`） | `https://api.openai.com/v1` |
+| `VC_LLM_MODEL` | 模型名 | `gpt-4o-mini` |
+| `PORT` | 服务端口 | `4173` |
+
+**安全提示**：`.env` 已在 `.gitignore` 中忽略，请**切勿**将真实 Key 提交到仓库。
+
+---
+
+## 📂 目录结构
+
+```
+viral-compass/
+├── server.js              # 纯 Node http 服务：静态托管 + 两个 API
+├── src/
+│   ├── ai.js              # LLM 调用 / JSON 解析 / 安全判定 / Mock 兜底
+│   └── prompt.js          # 选题 & 仿写两大 Prompt 拼装
+├── public/
+│   ├── index.html         # 前端页面（含两个功能模块）
+│   ├── app.js             # 前端逻辑
+│   └── styles.css         # 样式（红橙=侦测，紫=生产 双动线）
+├── .env.example           # 环境变量示例
+├── package.json
+└── 智能选题-开发方案.md    # 开发方案文档
+```
+
+---
+
+## 🔌 API 说明
+
+### `POST /api/generate-topics` —— AI 智能选题
+
+请求体：
+
+```json
+{
+  "hotspot_summary": "（必填）热点/趋势描述",
+  "content_types": ["干货教程"],
+  "audiences": ["学生党"],
+  "count": 5
+}
+```
+
+返回：
+
+```json
+{
+  "ok": true,
+  "model": "deepseek-chat",
+  "topics": [
+    {
+      "topic": "一句话选题",
+      "title": "可直接发布的小红书标题",
+      "angle": "切入口说明",
+      "anchor": "传播锚点",
+      "anchor_reason": "为何能引发截图收藏",
+      "genes": ["情绪钩子", "信息差"],
+      "score": { "click": 5, "spread": 4, "exec": 4, "total": 13 },
+      "edge": false,
+      "safety": { "level": "safe", "category": "", "reason": "" }
+    }
+  ]
+}
+```
+
+### `POST /api/rewrite` —— 爆款仿写二创
+
+请求体：
+
+```json
+{
+  "bestseller_content": "（必填）爆款笔记正文",
+  "target_audiences": ["职场新人"],
+  "count": 3
+}
+```
+
+返回：
+
+```json
+{
+  "ok": true,
+  "model": "deepseek-chat",
+  "source": {
+    "summary": "原文一句话概括",
+    "modules": [{ "name": "", "role": "", "transferable": "" }],
+    "mechanism": "爆火机制说明"
+  },
+  "rewrites": [
+    {
+      "topic": "二创选题",
+      "target_audience": "目标人群",
+      "angle_shift": "角度/人群/场景变化",
+      "draft": "同风格小红书文案草稿",
+      "genes": ["身份标签", "行动触发"],
+      "safety": { "level": "safe", "category": "", "reason": "" }
+    }
+  ]
+}
+```
+
+---
+
+## 🗺️ 路线图
+
+- [x] AI 智能选题（五步流水线 + 质量门）
+- [x] 爆款仿写二创（结构拆解 + 同风格二创）
+- [ ] 接回用户发布后的真实数据，反向校准打分模型
+- [ ] 多平台适配（抖音 / 公众号等）
+
+---
+
+
