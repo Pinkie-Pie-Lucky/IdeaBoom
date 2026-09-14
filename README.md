@@ -181,3 +181,29 @@ viral-compass/
 ---
 
 
+
+## 🧩 Codex Skill：小红书选题引擎
+
+仓库内置 `xiaohongshu-topic-engine`，将 IdeaBoom 的选题五步法、质量门、内容安全自检和差异化二创方法沉淀为可复用能力。
+
+Skill 文件位于 `.codex/skills/xiaohongshu-topic-engine/`。在 Codex 对话中可直接点名调用：
+
+```text
+使用 $xiaohongshu-topic-engine，为“秋季通勤护肤”生成 5 条面向油痘肌上班族的小红书选题。
+```
+
+也可以在请求中说明任务类型，无需指定命令：
+
+```text
+根据这段热点报告，按 IdeaBoom 的方法做选题并按传播潜力排序。
+```
+
+适用场景：
+
+- 将热点、趋势或用户痛点转成带传播锚点、评分和风险判断的选题；
+- 拆解用户有权参考的爆款内容，并进行“保留结构、不复刻表达”的差异化二创；
+- 调整或排查项目 API/UI 的生成逻辑时，保持既有 JSON 字段契约。
+
+Skill 不会自动发布内容、抓取平台数据或使用账号凭据；这类操作需单独授权。
+
+若要调整方法论，优先维护 `.codex/skills/xiaohongshu-topic-engine/SKILL.md` 与 `references/`；修改生成实现时，同步检查 `src/prompt.js` 和部署适配的 `app.py`。
